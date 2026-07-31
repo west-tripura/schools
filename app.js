@@ -2,7 +2,7 @@
 // Paste the /exec URL of your deployed Apps Script Web App here.
 // This is NOT a secret -- it's protected by the app's own login
 // (password / session token), not by being hidden. See README.md.
-const API_URL = 'PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxXJ8BXmGpGLtkKDQicS89ejPfsmPTzeP88GsIRyhwnaDf0UA8_sHui6tYbG2KDzpdl/exec';
 
 function callApi(action, args) {
   return fetch(API_URL, {
