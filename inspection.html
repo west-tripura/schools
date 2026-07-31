@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>School Inspection Proforma</title>
+  <meta name="theme-color" content="#1a5276">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function (err) {
+          console.warn('Service worker registration failed:', err);
+        });
+      });
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <a href="index.html" class="topbar-title" style="color:inherit; text-decoration:none;">&larr; School Inspection Proforma</a>
+      <div class="topbar-user" id="userBadge" style="display:none;">
+        <span id="userName"></span>
+        <button class="btn-link" id="logoutBtn">Logout</button>
+      </div>
+    </header>
+
+    <main id="main">
+<div id="view-login" class="view active">
+  <div class="card" style="max-width:420px; margin: 60px auto;">
+    <h2>Inspector Login</h2>
+
+    <!-- PRIMARY: email + password -->
+    <div id="loginPasswordStep">
+      <label>Registered Email</label>
+      <input type="email" id="loginEmail" placeholder="you@example.com">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Your password">
+      <button class="btn" id="loginBtn">Login</button>
+      <p style="margin-top:12px;"><button class="btn-link" id="showResetBtn" style="color:var(--primary); text-decoration:underline; background:none; border:none; cursor:pointer; padding:0; font-size:13px;">Set / Forgot Password?</button></p>
+    </div>
+
+    <!-- RESET FLOW: OTP-verified password set, step 1 (send code) -->
+    <div id="resetStep1" style="display:none;">
+      <p class="hint">First time here, or forgot your password? We'll email you a verification code.</p>
+      <label>Registered Email</label>
+      <input type="email" id="resetEmail" placeholder="you@example.com">
+      <button class="btn" id="sendResetOtpBtn">Send Verification Code</button>
+      <button class="btn btn-secondary" id="backToLoginBtn1">Back to Login</button>
+    </div>
+
+    <!-- RESET FLOW: step 2 (enter code + new password) -->
+    <div id="resetStep2" style="display:none;">
+      <p>Enter the 6-digit code sent to <strong id="resetEmailDisplay"></strong>, and choose a new password.</p>
+      <label>Verification Code</label>
+      <input type="text" id="resetOtpInput" maxlength="6" placeholder="123456">
+      <label>New Password</label>
+      <input type="password" id="resetNewPassword" placeholder="At least 6 characters">
+      <label>Confirm New Password</label>
+      <input type="password" id="resetConfirmPassword" placeholder="Re-enter password">
+      <button class="btn" id="setPasswordBtn">Set Password</button>
+      <button class="btn btn-secondary" id="backToLoginBtn2">Back to Login</button>
+    </div>
+
+    <div id="loginMsg"></div>
+  </div>
+</div>
+
+<div id="view-dashboard" class="view">
+  <div class="card">
+    <div class="top-actions">
+      <h2 style="margin:0;">My Inspections</h2>
+      <button class="btn" id="newFormBtn">+ New Inspection</button>
+    </div>
+    <div id="dashboardMsg"></div>
+    <table class="dash-table" id="dashboardTable">
+      <thead>
+        <tr><th>School</th><th>Inspection Date</th><th>Status</th><th>Last Updated</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="dashboardBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="view-form" class="view">
+  <div class="card">
+    <div class="top-actions">
+      <h2 style="margin:0;" id="formTitle">Inspection Form</h2>
+      <button class="btn btn-secondary" id="backToDashBtn">&larr; Back to Dashboard</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-part="1">1. Basic Info</button>
+      <button class="tab-btn" data-part="2">2. Attendance</button>
+      <button class="tab-btn" data-part="3">3. Facilities &amp; Grants</button>
+      <button class="tab-btn" data-part="4">4. PM-POSHAN</button>
+      <button class="tab-btn" data-part="5">5. Overall &amp; Signature</button>
+    </div>
+
+    <div id="formMsg"></div>
+
+    <!-- PART 1: BASIC INFO -->
+    <div class="part active" id="part-1">
+      <h3>School &amp; Staff Details</h3>
+      <div class="row">
+        <div><label>1. Name of School with Location</label><input type="text" id="f_schoolName"></div>
+        <div><label>Date of Inspection</label><input type="date" id="f_inspectionDate"></div>
+      </div>
+      <div class="row">
+        <div><label>2. Name of the Inspectorate</label><input type="text" id="f_inspectorate"></div>
+        <div><label>3. Name of HM / Teacher In-Charge</label><input type="text" id="f_hmName"></div>
+      </div>
+
+      <label>4. Total number of Teachers &amp; Students posted in the School</label>
+      <table class="data-table">
+        <thead><tr><th></th><th>Pry</th><th>Upp Pry</th><th>High</th><th>HS</th></tr></thead>
+        <tbody>
+          <tr><td>Student</td>
+            <td><input type="number" id="f_pryStudent"></td>
+            <td><input type="number" id="f_uppryStudent"></td>
+            <td><input type="number" id="f_highStudent"></td>
+            <td><input type="number" id="f_hsStudent"></td>
+          </tr>
+          <tr><td>Teacher</td>
+            <td><input type="number" id="f_pryTeacher"></td>
+            <td><input type="number" id="f_uppryTeacher"></td>
+            <td><input type="number" id="f_highTeacher"></td>
+            <td><input type="number" id="f_hsTeacher"></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <label>5. No. of other staff posted in the School</label>
+      <input type="number" id="f_otherStaff">
+
+      <label>6. No. &amp; name(s) of Teaching staff found absent on the day of visit</label>
+      <table class="data-table">
+        <thead><tr><th style="width:5%">Sl.No.</th><th>Name &amp; Designation</th><th>Leave sanctioned? Register entry made?</th><th>Remarks</th><th></th></tr></thead>
+        <tbody id="absentRowsBody"></tbody>
+      </table>
+      <button class="btn btn-small btn-secondary" id="addAbsentRowBtn">+ Add Row</button>
+    </div>
+
+    <!-- PART 2: ATTENDANCE -->
+    <div class="part" id="part-2">
+      <h3>7. Attendance of Students on the Day of Inspection</h3>
+      <table class="data-table">
+        <thead><tr><th>Class</th><th>Total Students</th><th>Present on Day of Inspection</th></tr></thead>
+        <tbody id="attendanceRowsBody"></tbody>
+        <tfoot>
+          <tr><td><strong>Grand Total</strong></td>
+            <td><input type="number" id="f_grandTotal" readonly></td>
+            <td><input type="number" id="f_grandPresent" readonly></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- PART 3: FACILITIES & GRANTS -->
+    <div class="part" id="part-3">
+      <h3>Water, Toilet &amp; Stipend/Scholarship</h3>
+
+      <label>8. Is functional water source available?</label>
+      <div class="yesno" id="f_waterAvailable_group">
+        <label><input type="radio" name="waterAvailable" value="Yes"> Yes</label>
+        <label><input type="radio" name="waterAvailable" value="No"> No</label>
+      </div>
+      <label>If yes, type of source</label>
+      <select id="f_waterType">
+        <option value="">-- select --</option>
+        <option>Piped water</option><option>Tube well</option><option>Katcha well</option><option>Pacca well</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label>9. Functional toilet facility available?</label>
+          <div class="yesno" id="f_toiletAvailable_group"><label><input type="radio" name="toiletAvailable" value="Yes"> Yes</label><label><input type="radio" name="toiletAvailable" value="No"> No</label></div>
+        </div>
+        <div>
+          <label>Whether cleaning is done?</label>
+          <div class="yesno" id="f_toiletCleaned_group"><label><input type="radio" name="toiletCleaned" value="Yes"> Yes</label><label><input type="radio" name="toiletCleaned" value="No"> No</label></div>
+        </div>
+        <div>
+          <label>Water facility available inside toilet?</label>
+          <div class="yesno" id="f_toiletWater_group"><label><input type="radio" name="toiletWater" value="Yes"> Yes</label><label><input type="radio" name="toiletWater" value="No"> No</label></div>
+        </div>
+      </div>
+
+      <h3>10. Regarding Stipend / Scholarship</h3>
+      <label>A) Dress Grant for SC/ST girls? (check APR/Register)</label>
+      <div class="yesno" id="f_dressGrant_group"><label><input type="radio" name="dressGrant" value="Yes"> Yes</label><label><input type="radio" name="dressGrant" value="No"> No</label></div>
+
+      <label>B) Pre-metric Scholarship (VI-VIII)? (check APR/Register)</label>
+      <div class="yesno" id="f_premetric_group"><label><input type="radio" name="premetric" value="Yes"> Yes</label><label><input type="radio" name="premetric" value="No"> No</label></div>
+
+      <label>C) Composite School grant utilized?</label>
+      <div class="yesno" id="f_compositeUtilized_group"><label><input type="radio" name="compositeUtilized" value="Yes"> Yes</label><label><input type="radio" name="compositeUtilized" value="No"> No</label></div>
+      <div class="row">
+        <div><label>Total grant received</label><input type="number" id="f_compositeReceived"></div>
+        <div><label>Amount spent</label><input type="number" id="f_compositeSpent"></div>
+      </div>
+
+      <label>D) Others grant utilized?</label>
+      <div class="yesno" id="f_othersUtilized_group"><label><input type="radio" name="othersUtilized" value="Yes"> Yes</label><label><input type="radio" name="othersUtilized" value="No"> No</label></div>
+      <div class="row">
+        <div><label>Total grant received</label><input type="number" id="f_othersReceived"></div>
+        <div><label>Amount spent</label><input type="number" id="f_othersSpent"></div>
+      </div>
+
+      <h3>Bicycles, Books &amp; Infrastructure</h3>
+      <label>11. Are bicycles for eligible girl-students distributed?</label>
+      <div class="yesno" id="f_bicycleDistributed_group"><label><input type="radio" name="bicycleDistributed" value="Yes"> Yes</label><label><input type="radio" name="bicycleDistributed" value="No"> No</label></div>
+      <div class="row">
+        <div><label>Nos. of eligible girl-children</label><input type="number" id="f_eligibleGirls"></div>
+        <div><label>Nos. of bicycles distributed</label><input type="number" id="f_bicyclesDistributed"></div>
+      </div>
+
+      <label>12. Whether free text book supplied to students of all classes?</label>
+      <div class="yesno" id="f_textbookSupplied_group"><label><input type="radio" name="textbookSupplied" value="Yes"> Yes</label><label><input type="radio" name="textbookSupplied" value="No"> No</label></div>
+
+      <label>13. Whether Electricity connection is available?</label>
+      <div class="yesno" id="f_electricity_group"><label><input type="radio" name="electricity" value="Yes"> Yes</label><label><input type="radio" name="electricity" value="No"> No</label></div>
+
+      <label>14. Number of Computers available (other than ICT Lab)</label>
+      <input type="number" id="f_computers">
+
+      <label>15. Whether ICT Lab is available?</label>
+      <div class="yesno" id="f_ictLab_group"><label><input type="radio" name="ictLab" value="Yes"> Yes</label><label><input type="radio" name="ictLab" value="No"> No</label></div>
+      <label>If Yes, status</label>
+      <textarea id="f_ictLabStatus"></textarea>
+
+      <label>16. Whether Vocational Education System available?</label>
+      <div class="yesno" id="f_vocational_group"><label><input type="radio" name="vocational" value="Yes"> Yes</label><label><input type="radio" name="vocational" value="No"> No</label></div>
+      <label>If Yes, status</label>
+      <textarea id="f_vocationalStatus"></textarea>
+
+      <h3>SMC &amp; Classroom Inspection</h3>
+      <label>17. Whether SMC meetings held regularly?</label>
+      <div class="yesno" id="f_smcRegular_group"><label><input type="radio" name="smcRegular" value="Yes"> Yes</label><label><input type="radio" name="smcRegular" value="No"> No</label></div>
+      <div class="row">
+        <div><label>No. of meetings held (current academic year)</label><input type="number" id="f_smcCount"></div>
+      </div>
+      <label>Observations on issues discussed in SMC</label>
+      <textarea id="f_smcObservation"></textarea>
+
+      <label>18. Details of Class room inspection with comments</label>
+      <div id="classroomCommentsBody"></div>
+      <button class="btn btn-small btn-secondary" id="addClassroomCommentBtn">+ Add Comment</button>
+
+      <label>19. Whether issues detected during previous inspection resolved?</label>
+      <div class="yesno" id="f_prevIssuesResolved_group"><label><input type="radio" name="prevIssuesResolved" value="Yes"> Yes</label><label><input type="radio" name="prevIssuesResolved" value="No"> No</label></div>
+      <label>If 'No', mention details</label>
+      <textarea id="f_prevIssuesDetails"></textarea>
+    </div>
+
+    <!-- PART 4: PM-POSHAN -->
+    <div class="part" id="part-4">
+      <h3>20. PM-POSHAN (School MDM)</h3>
+
+      <h4>20.1 Display of Information on MDM</h4>
+      <label>i) Display of Food Norms</label>
+      <div class="yesno" id="f_foodNormsDisplay_group"><label><input type="radio" name="foodNormsDisplay" value="Yes"> Yes</label><label><input type="radio" name="foodNormsDisplay" value="No"> No</label></div>
+      <label>ii) Weekly Menu Displayed</label>
+      <div class="yesno" id="f_weeklyMenuDisplay_group"><label><input type="radio" name="weeklyMenuDisplay" value="Yes"> Yes</label><label><input type="radio" name="weeklyMenuDisplay" value="No"> No</label></div>
+
+      <h4>20.2 Maintenance of MDM Record</h4>
+      <div class="row">
+        <div><label>i) PM-POSHAN Feeding Register</label>
+          <select id="f_feedingRegister"><option value="">--</option><option>Available</option><option>Not available</option></select>
+        </div>
+        <div><label>ii) Stock Register (grains/pulses/oils)</label>
+          <select id="f_stockRegister"><option value="">--</option><option>Available</option><option>Not available</option></select>
+        </div>
+        <div><label>iii) Food Tasting Register</label>
+          <select id="f_foodTastingRegister"><option value="">--</option><option>Available</option><option>Not available</option></select>
+        </div>
+      </div>
+
+      <label>iv) Whether Inspecting Officer tasted the cooked food?</label>
+      <div class="yesno" id="f_officerTasted_group"><label><input type="radio" name="officerTasted" value="Yes"> Yes</label><label><input type="radio" name="officerTasted" value="No"> No</label></div>
+      <label>v) Comment on cooked food</label>
+      <select id="f_cookedFoodComment"><option value="">--</option><option>Bad</option><option>Good</option><option>Very Good</option><option>Excellent</option></select>
+
+      <label>vi) Status of present stock of rice (in KG)</label>
+      <input type="number" id="f_riceStockKg">
+
+      <h4>20.3 Information on Food Grains</h4>
+      <div class="row">
+        <div><label>i) Quality of food grains</label>
+          <select id="f_foodGrainsQuality"><option value="">--</option><option>Good</option><option>Considerable</option><option>Other</option></select>
+        </div>
+        <div><label>ii) Whether received timely?</label>
+          <div class="yesno" id="f_foodGrainsTimely_group"><label><input type="radio" name="foodGrainsTimely" value="Yes"> Yes</label><label><input type="radio" name="foodGrainsTimely" value="No"> No</label></div>
+        </div>
+        <div><label>iii) Date of last receipt of foodgrains</label><input type="date" id="f_lastReceiptDate"></div>
+      </div>
+      <div class="row">
+        <div><label>iv) One-month buffer stock maintained?</label>
+          <div class="yesno" id="f_bufferStock_group"><label><input type="radio" name="bufferStock" value="Yes"> Yes</label><label><input type="radio" name="bufferStock" value="No"> No</label></div>
+        </div>
+        <div><label>v) Rice stored in good quality storage bin?</label>
+          <div class="yesno" id="f_riceStoredGoodBin_group"><label><input type="radio" name="riceStoredGoodBin" value="Yes"> Yes</label><label><input type="radio" name="riceStoredGoodBin" value="No"> No</label></div>
+        </div>
+        <div><label>How many bins available</label><input type="number" id="f_binsAvailable"></div>
+      </div>
+
+      <h4>20.4 Information on Cook-cum-Helpers</h4>
+      <div class="row">
+        <div><label>i) No. of Cook-cum-Helpers in the School</label><input type="number" id="f_cookHelpersCount"></div>
+        <div><label>ii) Apron &amp; scarf/head cover used?</label>
+          <div class="yesno" id="f_apronScarfUsed_group"><label><input type="radio" name="apronScarfUsed" value="Yes"> Yes</label><label><input type="radio" name="apronScarfUsed" value="No"> No</label></div>
+        </div>
+        <div><label>iii) Training given to cook-cum-helper?</label>
+          <div class="yesno" id="f_cookHelperTraining_group"><label><input type="radio" name="cookHelperTraining" value="Yes"> Yes</label><label><input type="radio" name="cookHelperTraining" value="No"> No</label></div>
+        </div>
+      </div>
+      <label>iv) Remuneration paid up to</label>
+      <input type="date" id="f_remunerationPaidUpTo">
+
+      <h4>20.5 Kitchen Shed, Dining Hall, Cooking Fuel, Kitchen Devices, Drinking Water &amp; Toilet Facility</h4>
+      <div class="row">
+        <div><label>i) Kitchen Shed exists?</label><div class="yesno" id="f_kitchenShedExists_group"><label><input type="radio" name="kitchenShedExists" value="Yes"> Yes</label><label><input type="radio" name="kitchenShedExists" value="No"> No</label></div></div>
+        <div><label>ii) Dining Hall exists?</label><div class="yesno" id="f_diningHallExists_group"><label><input type="radio" name="diningHallExists" value="Yes"> Yes</label><label><input type="radio" name="diningHallExists" value="No"> No</label></div></div>
+        <div><label>iii) Status of Kitchen Shed</label>
+          <select id="f_kitchenShedStatus"><option value="">--</option><option>Good</option><option>Not good</option><option>Other</option></select>
+        </div>
+      </div>
+      <div class="row">
+        <div><label>iv) LPG Connection installed?</label><div class="yesno" id="f_lpgConnection_group"><label><input type="radio" name="lpgConnection" value="Yes"> Yes</label><label><input type="radio" name="lpgConnection" value="No"> No</label></div></div>
+        <div><label>v) Kitchen Devices available?</label><div class="yesno" id="f_kitchenDevicesAvailable_group"><label><input type="radio" name="kitchenDevicesAvailable" value="Yes"> Yes</label><label><input type="radio" name="kitchenDevicesAvailable" value="No"> No</label></div></div>
+        <div><label>vi) Safe drinking water available?</label><div class="yesno" id="f_safeDrinkingWater_group"><label><input type="radio" name="safeDrinkingWater" value="Yes"> Yes</label><label><input type="radio" name="safeDrinkingWater" value="No"> No</label></div></div>
+      </div>
+      <label>If 'No', how is the drinking water demand met?</label>
+      <input type="text" id="f_drinkingWaterAlt">
+      <label>vii) Whether separate toilet facility for boys &amp; girls available?</label>
+      <div class="yesno" id="f_separateToilet_group"><label><input type="radio" name="separateToilet" value="Yes"> Yes</label><label><input type="radio" name="separateToilet" value="No"> No</label></div>
+
+      <h4>20.6 Safety &amp; Hygiene</h4>
+      <div class="row">
+        <div><label>i) Hand wash activity implemented?</label><div class="yesno" id="f_handWashActivity_group"><label><input type="radio" name="handWashActivity" value="Yes"> Yes</label><label><input type="radio" name="handWashActivity" value="No"> No</label></div></div>
+        <div><label>ii) Kitchen shed cleaned?</label><div class="yesno" id="f_kitchenShedCleaned_group"><label><input type="radio" name="kitchenShedCleaned" value="Yes"> Yes</label><label><input type="radio" name="kitchenShedCleaned" value="No"> No</label></div></div>
+        <div><label>iii) Rice kept clean &amp; hygienic?</label><div class="yesno" id="f_riceCleanHygiene_group"><label><input type="radio" name="riceCleanHygiene" value="Yes"> Yes</label><label><input type="radio" name="riceCleanHygiene" value="No"> No</label></div></div>
+      </div>
+      <div class="row">
+        <div><label>iv) Pulses/Oils/Condiments stored safely?</label><div class="yesno" id="f_pulsesOilsSafe_group"><label><input type="radio" name="pulsesOilsSafe" value="Yes"> Yes</label><label><input type="radio" name="pulsesOilsSafe" value="No"> No</label></div></div>
+        <div><label>v) Kitchen devices cleaned?</label><div class="yesno" id="f_kitchenDevicesCleaned_group"><label><input type="radio" name="kitchenDevicesCleaned" value="Yes"> Yes</label><label><input type="radio" name="kitchenDevicesCleaned" value="No"> No</label></div></div>
+      </div>
+
+      <h4>20.7 Information on School Health Programme</h4>
+      <label>i) Date of Last Visit by Doctors</label>
+      <input type="date" id="f_lastDoctorVisitDate">
+      <div class="row">
+        <div><label>ii) IFA Tablets distributed among all children?</label><div class="yesno" id="f_ifaTablets_group"><label><input type="radio" name="ifaTablets" value="Yes"> Yes</label><label><input type="radio" name="ifaTablets" value="No"> No</label></div></div>
+        <div><label>iii) Vitamin A distributed among all children?</label><div class="yesno" id="f_vitaminA_group"><label><input type="radio" name="vitaminA" value="Yes"> Yes</label><label><input type="radio" name="vitaminA" value="No"> No</label></div></div>
+        <div><label>iv) Deworming tablets distributed?</label><div class="yesno" id="f_dewormingTablets_group"><label><input type="radio" name="dewormingTablets" value="Yes"> Yes</label><label><input type="radio" name="dewormingTablets" value="No"> No</label></div></div>
+      </div>
+
+      <label>Date of Inspection by Monitoring Institute (if done)</label>
+      <input type="date" id="f_monitoringInstituteDate">
+    </div>
+
+    <!-- PART 5: OVERALL & SIGNATURE -->
+    <div class="part" id="part-5">
+      <h3>21. Interaction During Visit</h3>
+      <div class="yesno" id="f_interactionMade_group"><label><input type="radio" name="interactionMade" value="Yes"> Yes</label><label><input type="radio" name="interactionMade" value="No"> No</label></div>
+      <label>With whom (Students / Local people / SMC member)</label>
+      <input type="text" id="f_interactionWith" placeholder="e.g. Students, SMC member">
+
+      <h3>22. Overall Observation &amp; Corrective Actions Taken During Inspection</h3>
+      <div id="overallObsBody"></div>
+      <button class="btn btn-small btn-secondary" id="addOverallObsBtn">+ Add Point</button>
+
+      <h3>Signatures</h3>
+      <p class="hint">Typed names are recorded here for the record; physical signature &amp; seal are applied on the printed PDF.</p>
+      <div class="row">
+        <div>
+          <label>HM / AHM / Teacher In-charge Name</label>
+          <input type="text" id="f_hmSignName">
+          <label>Date</label>
+          <input type="date" id="f_hmDate">
+        </div>
+        <div>
+          <label>Inspecting Officer Name</label>
+          <input type="text" id="f_inspectingOfficerName">
+          <label>Date</label>
+          <input type="date" id="f_inspectingOfficerDate">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn btn-secondary" id="prevPartBtn" style="display:none;">&larr; Previous</button>
+      <button class="btn btn-secondary" id="saveDraftBtn">Save Draft</button>
+      <button class="btn" id="nextPartBtn">Next &rarr;</button>
+      <button class="btn btn-secondary" id="previewPdfBtn" style="display:none;">Preview PDF</button>
+      <button class="btn" id="submitFormBtn" style="display:none;">Submit &amp; Email PDF for Signature</button>
+    </div>
+  </div>
+</div>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

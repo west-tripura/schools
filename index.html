@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inspection Suite</title>
+  <meta name="theme-color" content="#1a5276">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-title">Inspection Suite</div>
+    <button class="btn btn-small" id="installBtn" style="display:none;">Install App</button>
+  </header>
+
+  <main class="home-main">
+    <p class="home-intro">Choose a module to get started. More modules will appear here as they're added.</p>
+
+    <div class="module-grid">
+      <a class="module-card" href="inspection.html">
+        <div class="module-icon">
+          <img src="icons/icon-192.png" alt="" width="48" height="48">
+        </div>
+        <div class="module-body">
+          <h3>School Inspection Proforma</h3>
+          <p>Digitised JB/SB/High &amp; HS school inspection form -- login, fill, preview, and submit reports with PDF generation.</p>
+        </div>
+        <div class="module-arrow">&rarr;</div>
+      </a>
+
+      <!--
+        To add a future module, copy the <a class="module-card"> block
+        above, point href at the new module's page, and swap the icon/
+        title/description. The grid wraps automatically.
+      -->
+    </div>
+  </main>
+
+  <script src="home.js"></script>
+</body>
+</html>
