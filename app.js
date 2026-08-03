@@ -30,8 +30,38 @@ function callApi(action, args) {
   // ====== VIEW SWITCHING ======
   function showView(name) {
     document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
-    document.getElementById('view-' + name).classList.add('active');
+    const target = document.getElementById('view-' + name);
+    if (target) target.classList.add('active');
+
+    const isLogin = (name === 'login');
+    const main = document.getElementById('main');
+    if (main) {
+      if (isLogin) {
+        main.style.cssText = 'margin:0; padding:0; max-width:none;';
+      } else {
+        main.style.cssText = '';
+      }
+    }
+
     document.getElementById('userBadge').style.display = (name === 'login') ? 'none' : 'flex';
+    document.getElementById('dashboardNav').style.display = (name === 'dashboard' || name === 'admin-dashboard') ? 'flex' : 'none';
+  }
+
+  function switchDashboardTab(tabKey) {
+    // Security: if user tries to access admin tab without admin role, block it
+    if (tabKey === 'admin') {
+      const role = CURRENT_INSPECTOR && (CURRENT_INSPECTOR.role || 'Inspector');
+      const isAdmin = role === 'Admin' || role === 'DM';
+      if (!isAdmin) return;
+    }
+    document.getElementById('tabMyInspections').classList.toggle('active', tabKey === 'my');
+    document.getElementById('tabAdminDashboard').classList.toggle('active', tabKey === 'admin');
+    if (tabKey === 'admin') {
+      showView('admin-dashboard');
+      loadAdminDashboard();
+    } else {
+      showView('dashboard');
+    }
   }
 
   function showMsg(elId, text, type) {
@@ -60,9 +90,34 @@ function callApi(action, args) {
         if (res && res.ok) {
           SESSION_TOKEN = res.token;
           CURRENT_INSPECTOR = res.inspector;
-          document.getElementById('userName').textContent = CURRENT_INSPECTOR.name + ' (' + CURRENT_INSPECTOR.email + ')';
+          document.getElementById('userName').textContent = CURRENT_INSPECTOR.name;
+
+          // Role-based badge
+          const role = (CURRENT_INSPECTOR.role || 'Inspector');
+          const roleBadgeEl = document.getElementById('userRoleBadge');
+          if (roleBadgeEl) {
+            roleBadgeEl.textContent = role;
+            roleBadgeEl.className = 'role-pill role-' + role.toLowerCase();
+          }
+
+          // Show/hide DM Admin Dashboard tab based on role
+          const adminTab = document.getElementById('tabAdminDashboard');
+          if (adminTab) {
+            const isAdmin = role === 'Admin' || role === 'DM';
+            adminTab.style.display = isAdmin ? 'flex' : 'none';
+          }
+
           document.getElementById('userBadge').style.display = 'flex';
-          loadDashboard();
+
+          // Admins go straight to admin dashboard; inspectors go to their dashboard
+          const isAdmin = role === 'Admin' || role === 'DM';
+          if (isAdmin) {
+            loadAdminDashboard();
+            document.getElementById('tabAdminDashboard').classList.add('active');
+            document.getElementById('tabMyInspections').classList.remove('active');
+          } else {
+            loadDashboard();
+          }
         } else {
           showMsg('loginMsg', (res && res.message) || 'Login failed: no response received from server.', 'error');
         }
@@ -171,6 +226,381 @@ function callApi(action, args) {
         '<td>' +
           '<button class="btn btn-small" onclick="openSubmission(\'' + r.id + '\')">Open</button> ' +
           (r.pdfUrl ? '<a class="btn btn-small btn-secondary" href="' + r.pdfUrl + '" target="_blank">PDF</a>' : '') +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  // ====== DM ADMIN DASHBOARD & COMPARATIVE ANALYTICS ======
+  let ADMIN_INSPECTORS = [];
+  let ADMIN_SUBMISSIONS = [];
+  let SELECTED_COMPARATIVE_EMAILS = [];
+
+  function loadAdminDashboard() {
+    showView('admin-dashboard');
+    callApi('getAdminDashboardData', [SESSION_TOKEN])
+      .then(function (res) {
+        if (!res || !res.ok) {
+          const detail = res ? res.message : 'Failed to retrieve admin data.';
+          showMsg('adminMasterMsg', detail, 'error');
+          return;
+        }
+        ADMIN_INSPECTORS = res.inspectors || [];
+        ADMIN_SUBMISSIONS = res.submissions || [];
+
+        if (!SELECTED_COMPARATIVE_EMAILS.length && ADMIN_INSPECTORS.length) {
+          SELECTED_COMPARATIVE_EMAILS = ADMIN_INSPECTORS.slice(0, 5).map(function(i){ return i.email; });
+        }
+
+        renderAdminKPIs(ADMIN_SUBMISSIONS);
+        renderComparativeStudy(ADMIN_INSPECTORS, ADMIN_SUBMISSIONS);
+        renderWaterAndFacilitiesTracker(ADMIN_SUBMISSIONS);
+        renderPmPoshanTracker(ADMIN_SUBMISSIONS);
+        populateAdminInspectorFilterDropdown(ADMIN_INSPECTORS);
+        filterAdminMasterTable();
+      })
+      .catch(function (err) {
+        showMsg('adminMasterMsg', 'Error loading admin data: ' + err.message, 'error');
+      });
+  }
+
+  function isYes(val) {
+    if (!val) return false;
+    val = String(val).trim().toLowerCase();
+    return val === 'yes' || val === 'true' || val === '1';
+  }
+
+  function renderAdminKPIs(subs) {
+    const total = subs.length;
+    let waterCount = 0;
+    let pmPoshanCount = 0;
+    let totalStudents = 0;
+    let totalTeachers = 0;
+    let totalEnrolled = 0;
+    let totalPresent = 0;
+
+    subs.forEach(function (s) {
+      const d = s.data || {};
+      const s1 = d.sec1 || {};
+      const s2 = d.sec2 || {};
+      const s3 = d.sec3 || {};
+      const s4 = d.sec4 || {};
+
+      if (isYes(s3.waterAvailable) || isYes(s4.safeDrinkingWater)) waterCount++;
+      if (isYes(s4.foodNormsDisplay) && isYes(s4.officerTasted)) pmPoshanCount++;
+
+      const st = (Number(s1.pryStudent)||0) + (Number(s1.uppryStudent)||0) + (Number(s1.highStudent)||0) + (Number(s1.hsStudent)||0);
+      const tc = (Number(s1.pryTeacher)||0) + (Number(s1.uppryTeacher)||0) + (Number(s1.highTeacher)||0) + (Number(s1.hsTeacher)||0);
+      totalStudents += st;
+      totalTeachers += tc;
+
+      totalEnrolled += Number(s2.grandTotal) || 0;
+      totalPresent += Number(s2.grandPresent) || 0;
+    });
+
+    const waterPct = total > 0 ? Math.round((waterCount / total) * 100) : 0;
+    const pmPoshanPct = total > 0 ? Math.round((pmPoshanCount / total) * 100) : 0;
+    const attPct = totalEnrolled > 0 ? ((totalPresent / totalEnrolled) * 100).toFixed(1) : '0';
+    const strVal = totalTeachers > 0 ? (totalStudents / totalTeachers).toFixed(1) : '0';
+
+    document.getElementById('kpiWaterPct').textContent = waterPct + '%';
+    document.getElementById('kpiWaterSub').textContent = waterCount + ' of ' + total + ' schools inspected';
+
+    document.getElementById('kpiPmPoshanPct').textContent = pmPoshanPct + '%';
+    document.getElementById('kpiPmPoshanSub').textContent = pmPoshanCount + ' of ' + total + ' schools compliant';
+
+    document.getElementById('kpiAttendancePct').textContent = attPct + '%';
+    document.getElementById('kpiAttendanceSub').textContent = totalPresent.toLocaleString() + ' present / ' + totalEnrolled.toLocaleString() + ' total enrolled';
+
+    document.getElementById('kpiSTR').textContent = strVal + ':1';
+    document.getElementById('kpiTeachersSub').textContent = totalStudents.toLocaleString() + ' students across ' + totalTeachers.toLocaleString() + ' teachers';
+  }
+
+  function renderComparativeStudy(inspectors, subs) {
+    const inspMap = {};
+    inspectors.forEach(function (i) {
+      inspMap[i.email.toLowerCase()] = {
+        name: i.name,
+        email: i.email,
+        designation: i.designation,
+        totalSubs: 0,
+        waterCount: 0,
+        pmPoshanCount: 0,
+        totalEnrolled: 0,
+        totalPresent: 0,
+        totalStudents: 0,
+        totalTeachers: 0,
+        lastDate: ''
+      };
+    });
+
+    subs.forEach(function (s) {
+      const em = (s.inspectorEmail || '').toLowerCase();
+      if (!inspMap[em]) {
+        inspMap[em] = {
+          name: s.inspectorName || s.inspectorEmail,
+          email: s.inspectorEmail,
+          designation: 'Inspector',
+          totalSubs: 0,
+          waterCount: 0,
+          pmPoshanCount: 0,
+          totalEnrolled: 0,
+          totalPresent: 0,
+          totalStudents: 0,
+          totalTeachers: 0,
+          lastDate: ''
+        };
+      }
+      const item = inspMap[em];
+      item.totalSubs++;
+
+      const d = s.data || {};
+      const s1 = d.sec1 || {};
+      const s2 = d.sec2 || {};
+      const s3 = d.sec3 || {};
+      const s4 = d.sec4 || {};
+
+      if (isYes(s3.waterAvailable) || isYes(s4.safeDrinkingWater)) item.waterCount++;
+      if (isYes(s4.foodNormsDisplay) && isYes(s4.officerTasted)) item.pmPoshanCount++;
+
+      item.totalEnrolled += Number(s2.grandTotal) || 0;
+      item.totalPresent += Number(s2.grandPresent) || 0;
+
+      const st = (Number(s1.pryStudent)||0) + (Number(s1.uppryStudent)||0) + (Number(s1.highStudent)||0) + (Number(s1.hsStudent)||0);
+      const tc = (Number(s1.pryTeacher)||0) + (Number(s1.uppryTeacher)||0) + (Number(s1.highTeacher)||0) + (Number(s1.hsTeacher)||0);
+      item.totalStudents += st;
+      item.totalTeachers += tc;
+      if (s.inspectionDate && s.inspectionDate > item.lastDate) item.lastDate = s.inspectionDate;
+    });
+
+    const inspList = Object.values(inspMap);
+
+    const chipContainer = document.getElementById('compInspectorSelector');
+    chipContainer.innerHTML = inspList.map(function (item) {
+      const isSel = SELECTED_COMPARATIVE_EMAILS.indexOf(item.email) !== -1;
+      return '<div class="comp-inspector-chip ' + (isSel ? 'selected' : '') + '" onclick="toggleComparativeInspector(\'' + item.email.replace(/'/g, "\\'") + '\')">' +
+        item.name + ' (' + item.totalSubs + ')' +
+      '</div>';
+    }).join('');
+
+    const selectedInspectors = inspList.filter(function (item) {
+      return SELECTED_COMPARATIVE_EMAILS.indexOf(item.email) !== -1;
+    }).slice(0, 5);
+
+    const cardsGrid = document.getElementById('compCardsGrid');
+    cardsGrid.innerHTML = selectedInspectors.map(function (item) {
+      const waterPct = item.totalSubs > 0 ? Math.round((item.waterCount / item.totalSubs) * 100) : 0;
+      const pmPct = item.totalSubs > 0 ? Math.round((item.pmPoshanCount / item.totalSubs) * 100) : 0;
+      const attPct = item.totalEnrolled > 0 ? ((item.totalPresent / item.totalEnrolled) * 100).toFixed(1) + '%' : '0%';
+      const strVal = item.totalTeachers > 0 ? (item.totalStudents / item.totalTeachers).toFixed(1) + ':1' : 'N/A';
+      const initials = (item.name || 'IN').split(' ').map(function(n){ return n[0]; }).join('').substring(0,2).toUpperCase();
+
+      return '<div class="comp-card">' +
+        '<div class="comp-card-avatar">' + initials + '</div>' +
+        '<div class="comp-card-name">' + item.name + '</div>' +
+        '<div class="comp-card-designation">' + item.designation + '</div>' +
+        '<div class="comp-metric-row"><span>Total Inspections</span><span>' + item.totalSubs + '</span></div>' +
+        '<div class="comp-metric-row"><span>Water Access</span><span>' + waterPct + '%</span></div>' +
+        '<div class="comp-metric-row"><span>PM-POSHAN Rate</span><span>' + pmPct + '%</span></div>' +
+        '<div class="comp-metric-row"><span>Avg Attendance</span><span>' + attPct + '</span></div>' +
+        '<div class="comp-metric-row"><span>STR Ratio</span><span>' + strVal + '</span></div>' +
+      '</div>';
+    }).join('');
+
+    const tableBody = document.getElementById('compTableBody');
+    tableBody.innerHTML = inspList.map(function (item) {
+      const waterPct = item.totalSubs > 0 ? Math.round((item.waterCount / item.totalSubs) * 100) : 0;
+      const pmPct = item.totalSubs > 0 ? Math.round((item.pmPoshanCount / item.totalSubs) * 100) : 0;
+      const attPct = item.totalEnrolled > 0 ? ((item.totalPresent / item.totalEnrolled) * 100).toFixed(1) : '0';
+      const strVal = item.totalTeachers > 0 ? (item.totalStudents / item.totalTeachers).toFixed(1) + ':1' : 'N/A';
+
+      return '<tr>' +
+        '<td><strong>' + item.name + '</strong><br><small style="color:var(--text-sub);">' + item.email + '</small></td>' +
+        '<td><span class="badge Active">' + item.totalSubs + '</span></td>' +
+        '<td>' +
+          '<div>' + waterPct + '% (' + item.waterCount + '/' + item.totalSubs + ')</div>' +
+          '<div class="bar-container"><div class="bar-fill ' + (waterPct >= 80 ? 'success' : (waterPct >= 50 ? 'warning' : 'danger')) + '" style="width:' + waterPct + '%;"></div></div>' +
+        '</td>' +
+        '<td>' +
+          '<div>' + pmPct + '% (' + item.pmPoshanCount + '/' + item.totalSubs + ')</div>' +
+          '<div class="bar-container"><div class="bar-fill ' + (pmPct >= 80 ? 'success' : (pmPct >= 50 ? 'warning' : 'danger')) + '" style="width:' + pmPct + '%;"></div></div>' +
+        '</td>' +
+        '<td>' +
+          '<div>' + attPct + '%</div>' +
+          '<div class="bar-container"><div class="bar-fill ' + (Number(attPct) >= 75 ? 'success' : 'warning') + '" style="width:' + Math.min(100, Number(attPct)) + '%;"></div></div>' +
+        '</td>' +
+        '<td>' + strVal + '</td>' +
+        '<td><button class="btn btn-small btn-outline" onclick="filterMasterByInspector(\'' + item.email.replace(/'/g, "\\'") + '\')">View Submissions</button></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function toggleComparativeInspector(email) {
+    const idx = SELECTED_COMPARATIVE_EMAILS.indexOf(email);
+    if (idx !== -1) {
+      if (SELECTED_COMPARATIVE_EMAILS.length > 1) {
+        SELECTED_COMPARATIVE_EMAILS.splice(idx, 1);
+      }
+    } else {
+      if (SELECTED_COMPARATIVE_EMAILS.length >= 5) {
+        SELECTED_COMPARATIVE_EMAILS.shift();
+      }
+      SELECTED_COMPARATIVE_EMAILS.push(email);
+    }
+    renderComparativeStudy(ADMIN_INSPECTORS, ADMIN_SUBMISSIONS);
+  }
+
+  function renderWaterAndFacilitiesTracker(subs) {
+    const total = subs.length;
+    let waterFunc = 0, toiletFunc = 0, sepToilet = 0, electricity = 0, textbook = 0, ictLab = 0;
+
+    subs.forEach(function (s) {
+      const d = s.data || {};
+      const s3 = d.sec3 || {};
+      const s4 = d.sec4 || {};
+
+      if (isYes(s3.waterAvailable)) waterFunc++;
+      if (isYes(s3.toiletAvailable)) toiletFunc++;
+      if (isYes(s4.separateToilet)) sepToilet++;
+      if (isYes(s3.electricity)) electricity++;
+      if (isYes(s3.textbookSupplied)) textbook++;
+      if (isYes(s3.ictLab)) ictLab++;
+    });
+
+    const wPct = total > 0 ? Math.round((waterFunc / total) * 100) : 0;
+    const tPct = total > 0 ? Math.round((toiletFunc / total) * 100) : 0;
+    const sepPct = total > 0 ? Math.round((sepToilet / total) * 100) : 0;
+    const elecPct = total > 0 ? Math.round((electricity / total) * 100) : 0;
+    const txtPct = total > 0 ? Math.round((textbook / total) * 100) : 0;
+    const ictPct = total > 0 ? Math.round((ictLab / total) * 100) : 0;
+
+    const html =
+      '<div style="margin-bottom:12px;">' +
+        '<strong>Functional Drinking Water Source:</strong> ' + wPct + '% (' + waterFunc + '/' + total + ')' +
+        '<div class="bar-container"><div class="bar-fill ' + (wPct >= 80 ? 'success' : 'warning') + '" style="width:' + wPct + '%;"></div></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<strong>Functional Toilet Facility:</strong> ' + tPct + '% (' + toiletFunc + '/' + total + ')' +
+        '<div class="bar-container"><div class="bar-fill ' + (tPct >= 80 ? 'success' : 'warning') + '" style="width:' + tPct + '%;"></div></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<strong>Separate Toilets for Boys &amp; Girls:</strong> ' + sepPct + '%' +
+        '<div class="bar-container"><div class="bar-fill ' + (sepPct >= 80 ? 'success' : 'warning') + '" style="width:' + sepPct + '%;"></div></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<strong>Electricity Supply:</strong> ' + elecPct + '%' +
+        '<div class="bar-container"><div class="bar-fill ' + (elecPct >= 80 ? 'success' : 'warning') + '" style="width:' + elecPct + '%;"></div></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<strong>Free Textbooks Supplied:</strong> ' + txtPct + '%' +
+        '<div class="bar-container"><div class="bar-fill ' + (txtPct >= 90 ? 'success' : 'warning') + '" style="width:' + txtPct + '%;"></div></div>' +
+      '</div>' +
+      '<div>' +
+        '<strong>ICT Lab Installed:</strong> ' + ictPct + '%' +
+        '<div class="bar-container"><div class="bar-fill ' + (ictPct >= 50 ? 'success' : 'warning') + '" style="width:' + ictPct + '%;"></div></div>' +
+      '</div>';
+
+    document.getElementById('waterTrackerBody').innerHTML = html;
+  }
+
+  function renderPmPoshanTracker(subs) {
+    const total = subs.length;
+    let menuDisplay = 0, tasted = 0, cleanKitchen = 0, lpg = 0, healthTablets = 0, totalRiceKg = 0;
+
+    subs.forEach(function (s) {
+      const d = s.data || {};
+      const s4 = d.sec4 || {};
+
+      if (isYes(s4.weeklyMenuDisplay) || isYes(s4.foodNormsDisplay)) menuDisplay++;
+      if (isYes(s4.officerTasted)) tasted++;
+      if (isYes(s4.kitchenShedCleaned)) cleanKitchen++;
+      if (isYes(s4.lpgConnection)) lpg++;
+      if (isYes(s4.ifaTablets) || isYes(s4.vitaminA) || isYes(s4.dewormingTablets)) healthTablets++;
+      totalRiceKg += Number(s4.riceStockKg) || 0;
+    });
+
+    const menuPct = total > 0 ? Math.round((menuDisplay / total) * 100) : 0;
+    const tastedPct = total > 0 ? Math.round((tasted / total) * 100) : 0;
+    const cleanPct = total > 0 ? Math.round((cleanKitchen / total) * 100) : 0;
+    const lpgPct = total > 0 ? Math.round((lpg / total) * 100) : 0;
+    const healthPct = total > 0 ? Math.round((healthTablets / total) * 100) : 0;
+    const avgRice = total > 0 ? Math.round(totalRiceKg / total) : 0;
+
+    const html =
+      '<div style="margin-bottom:12px;">' +
+        '<strong>Weekly Menu / Food Norms Displayed:</strong> ' + menuPct + '%' +
+        '<div class="bar-container"><div class="bar-fill ' + (menuPct >= 80 ? 'success' : 'warning') + '" style="width:' + menuPct + '%;"></div></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<strong>Food Tasted by Inspecting Officer:</strong> ' + tastedPct + '%' +
+        '<div class="bar-container"><div class="bar-fill ' + (tastedPct >= 80 ? 'success' : 'warning') + '" style="width:' + tastedPct + '%;"></div></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<strong>Clean &amp; Hygienic Kitchen Shed:</strong> ' + cleanPct + '%' +
+        '<div class="bar-container"><div class="bar-fill ' + (cleanPct >= 80 ? 'success' : 'warning') + '" style="width:' + cleanPct + '%;"></div></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<strong>LPG Connection Available:</strong> ' + lpgPct + '%' +
+        '<div class="bar-container"><div class="bar-fill ' + (lpgPct >= 80 ? 'success' : 'warning') + '" style="width:' + lpgPct + '%;"></div></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<strong>Health Supplements Distributed:</strong> ' + healthPct + '%' +
+        '<div class="bar-container"><div class="bar-fill ' + (healthPct >= 80 ? 'success' : 'warning') + '" style="width:' + healthPct + '%;"></div></div>' +
+      '</div>' +
+      '<div>' +
+        '<strong>Average Rice Stock Available:</strong> <span class="badge Active">' + avgRice + ' KG per school</span>' +
+      '</div>';
+
+    document.getElementById('pmPoshanTrackerBody').innerHTML = html;
+  }
+
+  function populateAdminInspectorFilterDropdown(inspectors) {
+    const select = document.getElementById('adminInspectorFilter');
+    if (!select) return;
+    select.innerHTML = '<option value="">All Inspectors</option>' +
+      inspectors.map(function(i){ return '<option value="' + i.email + '">' + i.name + '</option>'; }).join('');
+  }
+
+  function filterMasterByInspector(email) {
+    const select = document.getElementById('adminInspectorFilter');
+    if (select) select.value = email;
+    filterAdminMasterTable();
+  }
+
+  function filterAdminMasterTable() {
+    const q = (document.getElementById('adminSearchInput').value || '').toLowerCase();
+    const statusFilter = document.getElementById('adminStatusFilter').value;
+    const inspectorFilter = document.getElementById('adminInspectorFilter').value.toLowerCase();
+
+    const filtered = ADMIN_SUBMISSIONS.filter(function (s) {
+      const matchQuery = !q || (s.schoolName || '').toLowerCase().indexOf(q) !== -1 || (s.inspectorName || '').toLowerCase().indexOf(q) !== -1;
+      const matchStatus = !statusFilter || s.status === statusFilter;
+      const matchInspector = !inspectorFilter || (s.inspectorEmail || '').toLowerCase() === inspectorFilter;
+      return matchQuery && matchStatus && matchInspector;
+    });
+
+    const body = document.getElementById('adminMasterBody');
+    if (!filtered.length) {
+      body.innerHTML = '<tr><td colspan="7">No matching inspection records found.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = filtered.map(function (r) {
+      const d = r.data || {};
+      const s3 = d.sec3 || {};
+      const s4 = d.sec4 || {};
+      const hasWater = isYes(s3.waterAvailable) || isYes(s4.safeDrinkingWater);
+      const pmCompliant = isYes(s4.foodNormsDisplay) && isYes(s4.officerTasted);
+
+      return '<tr>' +
+        '<td><strong>' + (r.schoolName || '(untitled)') + '</strong></td>' +
+        '<td>' + (r.inspectorName || r.inspectorEmail) + '</td>' +
+        '<td>' + (r.inspectionDate || '') + '</td>' +
+        '<td><span class="badge ' + (hasWater ? 'Submitted' : 'Draft') + '">' + (hasWater ? 'Yes' : 'No') + '</span></td>' +
+        '<td><span class="badge ' + (pmCompliant ? 'Submitted' : 'Draft') + '">' + (pmCompliant ? 'Compliant' : 'Needs Review') + '</span></td>' +
+        '<td><span class="badge ' + r.status + '">' + r.status + '</span></td>' +
+        '<td>' +
+          (r.pdfUrl ? '<a class="btn btn-small btn-secondary" href="' + r.pdfUrl + '" target="_blank">PDF</a>' : '<span style="color:#94a3b8; font-size:12px;">No PDF</span>') +
         '</td>' +
       '</tr>';
     }).join('');
