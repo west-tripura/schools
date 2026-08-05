@@ -51,7 +51,7 @@ function callApi(action, args) {
     // Security: if user tries to access admin tab without admin role, block it
     if (tabKey === 'admin') {
       const role = CURRENT_INSPECTOR && (CURRENT_INSPECTOR.role || 'Inspector');
-      const isAdmin = role === 'Admin' || role === 'DM';
+      const isAdmin = role === 'Admin';
       if (!isAdmin) return;
     }
     document.getElementById('tabMyInspections').classList.toggle('active', tabKey === 'my');
@@ -100,17 +100,17 @@ function callApi(action, args) {
             roleBadgeEl.className = 'role-pill role-' + role.toLowerCase();
           }
 
-          // Show/hide DM Admin Dashboard tab based on role
+          // Show/hide Admin Dashboard tab based on role
           const adminTab = document.getElementById('tabAdminDashboard');
           if (adminTab) {
-            const isAdmin = role === 'Admin' || role === 'DM';
+            const isAdmin = role === 'Admin';
             adminTab.style.display = isAdmin ? 'flex' : 'none';
           }
 
           document.getElementById('userBadge').style.display = 'flex';
 
           // Admins go straight to admin dashboard; inspectors go to their dashboard
-          const isAdmin = role === 'Admin' || role === 'DM';
+          const isAdmin = role === 'Admin';
           if (isAdmin) {
             loadAdminDashboard();
             document.getElementById('tabAdminDashboard').classList.add('active');
@@ -231,7 +231,7 @@ function callApi(action, args) {
     }).join('');
   }
 
-  // ====== DM ADMIN DASHBOARD & COMPARATIVE ANALYTICS ======
+  // ====== ADMIN DASHBOARD & COMPARATIVE ANALYTICS ======
   let ADMIN_INSPECTORS = [];
   let ADMIN_SUBMISSIONS = [];
   let SELECTED_COMPARATIVE_EMAILS = [];

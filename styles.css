@@ -599,7 +599,7 @@ textarea { min-height: 70px; resize: vertical; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-.role-pill.role-admin, .role-pill.role-dm {
+.role-pill.role-admin {
   background: rgba(251,191,36,0.2);
   color: #fbbf24;
   border: 1px solid rgba(251,191,36,0.25);
