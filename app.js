@@ -48,12 +48,9 @@ function callApi(action, args) {
   }
 
   function switchDashboardTab(tabKey) {
-    // Security: if user tries to access admin tab without admin role, block it
-    if (tabKey === 'admin') {
-      const role = CURRENT_INSPECTOR && (CURRENT_INSPECTOR.role || 'Inspector');
-      const isAdmin = role === 'Admin';
-      if (!isAdmin) return;
-    }
+    // Both tabs are available to every logged-in user -- the server
+    // (getAdminDashboardData) is what scopes the data to the caller's
+    // own Block for non-admins, so there's nothing to gate here.
     document.getElementById('tabMyInspections').classList.toggle('active', tabKey === 'my');
     document.getElementById('tabAdminDashboard').classList.toggle('active', tabKey === 'admin');
     if (tabKey === 'admin') {
@@ -100,17 +97,22 @@ function callApi(action, args) {
             roleBadgeEl.className = 'role-pill role-' + role.toLowerCase();
           }
 
-          // Show/hide Admin Dashboard tab based on role
-          const adminTab = document.getElementById('tabAdminDashboard');
-          if (adminTab) {
-            const isAdmin = role === 'Admin';
-            adminTab.style.display = isAdmin ? 'flex' : 'none';
+          // The second tab is available to every logged-in user now --
+          // admins see every Block, regular inspectors see only their
+          // own Block (colleagues + themselves). Only the label and the
+          // data returned differ; the tab itself is never hidden.
+          const isAdmin = role === 'Admin';
+          const tabLabelEl = document.getElementById('tabAdminDashboardLabel');
+          if (tabLabelEl) {
+            tabLabelEl.textContent = isAdmin
+              ? 'Admin Dashboard & Comparative Study'
+              : 'Block Dashboard & Comparative Study';
           }
 
           document.getElementById('userBadge').style.display = 'flex';
 
-          // Admins go straight to admin dashboard; inspectors go to their dashboard
-          const isAdmin = role === 'Admin';
+          // Admins go straight to the (all-Blocks) dashboard; inspectors
+          // land on their own submissions first and can switch tabs.
           if (isAdmin) {
             loadAdminDashboard();
             document.getElementById('tabAdminDashboard').classList.add('active');
@@ -241,12 +243,29 @@ function callApi(action, args) {
     callApi('getAdminDashboardData', [SESSION_TOKEN])
       .then(function (res) {
         if (!res || !res.ok) {
-          const detail = res ? res.message : 'Failed to retrieve admin data.';
+          const detail = res ? res.message : 'Failed to retrieve dashboard data.';
           showMsg('adminMasterMsg', detail, 'error');
           return;
         }
         ADMIN_INSPECTORS = res.inspectors || [];
         ADMIN_SUBMISSIONS = res.submissions || [];
+        const scope = res.scope || {};
+
+        // Scope label + master-table Block column: only meaningful (and
+        // only shown) when there's more than one Block in view, i.e. an
+        // admin looking across the whole district.
+        const scopeLabelEl = document.getElementById('dashboardScopeLabel');
+        const masterTitleEl = document.getElementById('masterTableTitle');
+        const blockHeaderEl = document.getElementById('masterTableBlockHeader');
+        if (scope.isAdmin) {
+          if (scopeLabelEl) scopeLabelEl.textContent = 'Showing data for all Blocks and all inspectors.';
+          if (masterTitleEl) masterTitleEl.textContent = 'District Master Inspection Records';
+          if (blockHeaderEl) blockHeaderEl.style.display = '';
+        } else {
+          if (scopeLabelEl) scopeLabelEl.textContent = 'Showing data for your Block: ' + (scope.block || '(not set)');
+          if (masterTitleEl) masterTitleEl.textContent = 'Block Master Inspection Records — ' + (scope.block || '');
+          if (blockHeaderEl) blockHeaderEl.style.display = 'none';
+        }
 
         if (!SELECTED_COMPARATIVE_EMAILS.length && ADMIN_INSPECTORS.length) {
           SELECTED_COMPARATIVE_EMAILS = ADMIN_INSPECTORS.slice(0, 5).map(function(i){ return i.email; });
@@ -260,7 +279,7 @@ function callApi(action, args) {
         filterAdminMasterTable();
       })
       .catch(function (err) {
-        showMsg('adminMasterMsg', 'Error loading admin data: ' + err.message, 'error');
+        showMsg('adminMasterMsg', 'Error loading dashboard data: ' + err.message, 'error');
       });
   }
 
@@ -323,6 +342,7 @@ function callApi(action, args) {
         name: i.name,
         email: i.email,
         designation: i.designation,
+        block: i.block || '',
         totalSubs: 0,
         waterCount: 0,
         pmPoshanCount: 0,
@@ -341,6 +361,7 @@ function callApi(action, args) {
           name: s.inspectorName || s.inspectorEmail,
           email: s.inspectorEmail,
           designation: 'Inspector',
+          block: s.block || '',
           totalSubs: 0,
           waterCount: 0,
           pmPoshanCount: 0,
@@ -414,8 +435,9 @@ function callApi(action, args) {
       const attPct = item.totalEnrolled > 0 ? ((item.totalPresent / item.totalEnrolled) * 100).toFixed(1) : '0';
       const strVal = item.totalTeachers > 0 ? (item.totalStudents / item.totalTeachers).toFixed(1) + ':1' : 'N/A';
 
+      const blockSuffix = item.block ? ' &middot; ' + item.block : '';
       return '<tr>' +
-        '<td><strong>' + item.name + '</strong><br><small style="color:var(--text-sub);">' + item.email + '</small></td>' +
+        '<td><strong>' + item.name + '</strong><br><small style="color:var(--text-sub);">' + item.email + blockSuffix + '</small></td>' +
         '<td><span class="badge Active">' + item.totalSubs + '</span></td>' +
         '<td>' +
           '<div>' + waterPct + '% (' + item.waterCount + '/' + item.totalSubs + ')</div>' +
@@ -580,8 +602,10 @@ function callApi(action, args) {
     });
 
     const body = document.getElementById('adminMasterBody');
+    const blockHeaderEl = document.getElementById('masterTableBlockHeader');
+    const showBlockCol = !!(blockHeaderEl && blockHeaderEl.style.display !== 'none');
     if (!filtered.length) {
-      body.innerHTML = '<tr><td colspan="7">No matching inspection records found.</td></tr>';
+      body.innerHTML = '<tr><td colspan="' + (showBlockCol ? 8 : 7) + '">No matching inspection records found.</td></tr>';
       return;
     }
 
@@ -595,6 +619,7 @@ function callApi(action, args) {
       return '<tr>' +
         '<td><strong>' + (r.schoolName || '(untitled)') + '</strong></td>' +
         '<td>' + (r.inspectorName || r.inspectorEmail) + '</td>' +
+        (showBlockCol ? '<td>' + (r.block || '') + '</td>' : '') +
         '<td>' + (r.inspectionDate || '') + '</td>' +
         '<td><span class="badge ' + (hasWater ? 'Submitted' : 'Draft') + '">' + (hasWater ? 'Yes' : 'No') + '</span></td>' +
         '<td><span class="badge ' + (pmCompliant ? 'Submitted' : 'Draft') + '">' + (pmCompliant ? 'Compliant' : 'Needs Review') + '</span></td>' +
