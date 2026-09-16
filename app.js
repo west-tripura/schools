@@ -748,8 +748,34 @@ function callApi(action, args) {
     updateSubmitButtonLabel();
     goToPart(1);
     showView('form');
+// populateGPS(); // Moved to Get Location button
   }
 
+function populateGPS() {
+  const gpsInfo = document.getElementById('gpsInfo');
+  if (navigator.geolocation) {
+    if (gpsInfo) gpsInfo.textContent = 'Fetching location...';
+    navigator.geolocation.getCurrentPosition(function(position) {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      document.getElementById('f_schoolLat').value = lat;
+      document.getElementById('f_schoolLng').value = lng;
+      if (gpsInfo) {
+        const mapsUrl = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+        gpsInfo.innerHTML = 'Lat: ' + lat + ', Lng: ' + lng +
+          ' &middot; <a href="' + mapsUrl + '" target="_blank" rel="noopener">View on Google Maps</a>';
+      }
+    }, function(error) {
+      console.warn('Geolocation error:', error);
+      if (gpsInfo) gpsInfo.textContent = 'Could not capture location: ' + error.message;
+      // leave fields empty for manual entry
+    }, { enableHighAccuracy: true });
+  } else {
+    console.warn('Geolocation not supported');
+    if (gpsInfo) gpsInfo.textContent = 'Geolocation not supported by this browser.';
+  }
+}
+document.getElementById('btnGetLocation')?.addEventListener('click', populateGPS);
   function updateSubmitButtonLabel() {
     document.getElementById('submitFormBtn').textContent = (CURRENT_SUBMISSION_STATUS === 'Submitted')
       ? 'Update & Resubmit (Regenerates PDF)'
@@ -775,7 +801,10 @@ function callApi(action, args) {
   // ====== GATHER / POPULATE ======
   function gatherFormData() {
     const s1 = {
-      schoolName: val('f_schoolName'), inspectionDate: val('f_inspectionDate'),
+      schoolName: val('f_schoolName'),
+      schoolLat: val('f_schoolLat'),
+      schoolLng: val('f_schoolLng'),
+      inspectionDate: val('f_inspectionDate'),
       inspectorate: val('f_inspectorate'), hmName: val('f_hmName'),
       pryStudent: val('f_pryStudent'), uppryStudent: val('f_uppryStudent'), highStudent: val('f_highStudent'), hsStudent: val('f_hsStudent'),
       pryTeacher: val('f_pryTeacher'), uppryTeacher: val('f_uppryTeacher'), highTeacher: val('f_highTeacher'), hsTeacher: val('f_hsTeacher'),
@@ -841,6 +870,16 @@ function callApi(action, args) {
     setVal('f_pryStudent', s1.pryStudent); setVal('f_uppryStudent', s1.uppryStudent); setVal('f_highStudent', s1.highStudent); setVal('f_hsStudent', s1.hsStudent);
     setVal('f_pryTeacher', s1.pryTeacher); setVal('f_uppryTeacher', s1.uppryTeacher); setVal('f_highTeacher', s1.highTeacher); setVal('f_hsTeacher', s1.hsTeacher);
     setVal('f_otherStaff', s1.otherStaff);
+    setVal('f_schoolLat', s1.schoolLat);
+    setVal('f_schoolLng', s1.schoolLng);
+    const gpsInfo = document.getElementById('gpsInfo');
+    if (s1.schoolLat && s1.schoolLng) {
+      const mapsUrl = 'https://www.google.com/maps?q=' + s1.schoolLat + ',' + s1.schoolLng;
+      gpsInfo.innerHTML = 'Lat: ' + s1.schoolLat + ', Lng: ' + s1.schoolLng +
+        ' &middot; <a href="' + mapsUrl + '" target="_blank" rel="noopener">View on Google Maps</a>';
+    } else {
+      gpsInfo.textContent = 'Location not captured';
+    }
     document.getElementById('absentRowsBody').innerHTML = '';
     (s1.absentRows && s1.absentRows.length ? s1.absentRows : [{}]).forEach(function (r) { addAbsentRow(r); });
 

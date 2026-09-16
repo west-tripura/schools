@@ -314,7 +314,13 @@
     <div class="part active" id="part-1">
       <h3>School &amp; Staff Details</h3>
       <div class="row">
-        <div><label>1. Name of School with Location</label><input type="text" id="f_schoolName"></div>
+        <div><label>1. Name of School with Location</label>
+          <input type="text" id="f_schoolName">
+            <button type="button" id="btnGetLocation" class="btn btn-small">Get Location</button>
+            <div id="gpsInfo" style="font-size:0.9em; color:#555; margin-top:4px;">Location not captured</div>
+        </div>
+        <input type="hidden" id="f_schoolLat" />
+        <input type="hidden" id="f_schoolLng" />
         <div><label>Date of Inspection</label><input type="date" id="f_inspectionDate"></div>
       </div>
       <div class="row">
